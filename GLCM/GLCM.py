@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os
+import traceback
+
+import numpy as np
+import matplotlib.pyplot as plt
+from skimage import io
+from skimage.feature import graycomatrix, graycoprops
+from skimage.measure import block_reduce
+from PIL import PpmImagePlugin
+
+
+class GLCM():
+
+    def __init__(self) -> None:
+        self.__FIN = None
+        self.__PATCH_SIZE = 35
+        self.__LEVELS = 4096
+        self.__DISTANCES = [1]
+        self.__ANGLES = [0, np.pi/4, np.pi/2, 3*np.pi/4]
+
+    @property
+    def fin(self):
+        return self.__FIN
+
+    @fin.setter
+    def fin(self, fin:str):
+        self.__FIN = fin
+
+    @property
+    def PATCH_SIZE(self):
+        return self.__PATCH_SIZE
+
+    @PATCH_SIZE.setter
+    def PATCH_SIZE(self, patch_size):
+        self.__PATCH_SIZE = patch_size
+
+    @property
+    def levels(self):
+        return self.__LEVELS
+
+    @levels.setter
+    def levels(self, new_level:int):
+        self.__LEVELS = new_level
+
+    @property
+    def DISTANCES(self):
+        return self.__DISTANCES
+
+    @DISTANCES.setter
+    def DISTANCES(self, distances):
+        self.__DISTANCES = distances
+
+    @property
+    def ANGLES(self):
+        return self.__ANGLES
+
+    @ANGLES.setter
+    def ANGLES(self, angles):
+        self.__ANGLES = angles
+
+
+    def read_pgm_12bit(self, fin:str) -> None:
+        # PGMヘッダー情報を読み込む
+        self.fin = fin
+        with open(fin, 'rb') as f:
+            header = f.readline().decode().strip()
+            if header != 'P2':
+                raise ValueError("Not a valid PGM file")
+
+            while True:
+                size_line = f.readline().decode().strip()
+                if size_line.startswith('#'):
+                    continue
+                else:
+                    break
+
+            width, height = map(int, size_line.split())
+            max_value = int(f.readline().decode().strip())
+
+            if max_value != 4095:
+                raise ValueError("Not a 12bit level grayscale PGM image")
+
+        # scikit-imageのio.imread()で画像データを読み込む
+        self.img = io.imread(fin, 
+                             as_gray=True,
+                             plugin='pil',
+                             dtype=np.uint16)
+        # 読み込んだデータはuint16形式のデータとなるので、
+        # 輝度が16ビットになっている。
+        # 12ビットの輝度を保つ為に、4ビット分だけ右ビットシフトする
+        self.img = self.img >> 4
+
+
+    def imshow(self, vmin=0, vmax=5, save_img=False) -> None:
+        fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(12,4))
+        axs[0].imshow(self.img, cmap='gray')
+        axs[1].imshow(self.GLCM[:, :, 0, 0], vmin=vmin, vmax=vmax)
+        axs[2].imshow(self.GLCM[:, :, 0, 1], vmin=vmin, vmax=vmax)
+        axs[3].imshow(self.GLCM[:, :, 0, 2], vmin=vmin, vmax=vmax)
+        axs[4].imshow(self.GLCM[:, :, 0, 3], vmin=vmin, vmax=vmax)
+        name = os.path.splitext(self.fin)[0]
+        plt.title(name)
+        plt.tight_layout()
+
+        if save_img:
+            savename = name + "_glcm.png"
+            plt.savefig(savename)
+        else:
+            plt.show()
+
+
+    def glcm(self, pooled=False) -> None:
+        if pooled:
+            img = self.pooled_img
+        else:
+            img = self.img
+
+        self.GLCM = graycomatrix(img,
+                                 self.DISTANCES,
+                                 self.ANGLES,
+                                 levels=self.levels)
+
+        disssimilarity = graycoprops(self.GLCM, 'dissimilarity')[0, 0]
+        correlation    = graycoprops(self.GLCM, 'correlation')[0, 0]
+        energy         = graycoprops(self.GLCM, 'energy')[0, 0]
+        homogeneity    = graycoprops(self.GLCM, 'homogeneity')[0, 0]
+        contrast       = graycoprops(self.GLCM, 'contrast')[0, 0]
+
+        print("%s,%f,%f,%f,%f,%f\n"
+              %(self.fin, disssimilarity, correlation,
+                energy, homogeneity, contrast))
+
+
+    def pooling(self, 
+                method:str='max', 
+                new_levels:int=256, 
+                padding_size:int=0,
+                padding_mode:str='edge') -> None:
+
+        def _pad_image(img:np.array,
+                       size:int = 1,
+                       mode:str='edge') -> np.array:
+
+            padded_img = np.pad(img, pad_width=size, mode=mode)
+            # padded_img = np.pad(img, pad_width=size, mode=mode)
+            return padded_img
+
+        if padding_size > 0:
+            img = _pad_image(self.img, size=padding_size, mode=padding_mode)
+        else:
+            img = self.img
+
+        # paddingした範囲は直接の処理対象から外すことで、pooling後の
+        # 画像サイズを所望のものとすることが出来る
+        if method == 'max':
+            self.pooled_img = block_reduce(img[padding_size:-padding_size,
+                                               padding_size:-padding_size],
+                                           (2, 2), np.max)
+        elif method == 'min':
+            self.pooled_img = block_reduce(img[padding_size:-padding_size,
+                                               padding_size:-padding_size],
+                                           (2, 2), np.min)
+        elif method == 'average':
+            self.pooled_img = block_reduce(img[padding_size:-padding_size,
+                                               padding_size:-padding_size],
+                                           (2, 2), np.mean)
+        elif method == 'median':
+            self.pooled_img = block_reduce(img[padding_size:-padding_size,
+                                               padding_size:-padding_size],
+                                           (2, 2), np.median)
+        else:
+            raise ValueError("Invalid pooling method. Choose from 'max', 'min', 'average', or 'median'.")
+
+        # 諧調変換
+        max_value = np.max(self.pooled_img)
+        new_max_value = new_levels - 1
+        self.pooled_img = (self.pooled_img / max_value) * new_max_value
+        self.pooled_img = self.pooled_img.astype(np.uint16)
+        self.levels = new_levels
+
+
+    def run(self, 
+            fin:str, 
+            pooling=False,
+            padding_size=0,
+            save_img=False,
+            vmin=0, vmax=100) -> None:
+
+        self.read_pgm_12bit(fin)
+        if pooling:
+            self.pooling(padding_size=padding_size)
+
+        self.glcm(pooled=pooling)
+
+        if save_img:
+            self.imshow(vmin=vmin, vmax=vmax, save_img=save_img)
+
+
+    def run_all(self) -> None:
+        try:                             
+            for root, dirs, files in os.walk(os.getcwd()):
+                files.sort(key=lambda x: os.path.getmtime(x))
+                for fin in files:
+                    suffix = os.path.splitext(fin)[1]
+                    if suffix == '.pgm':
+                        self.glcm(fin)
+                    else:
+                        continue
+
+        except Exception as e:
+            print(e)
+            print(traceback.format_exc())
+
