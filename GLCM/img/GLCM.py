@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import io
 from skimage.feature import graycomatrix, graycoprops
-from skimage.measure import block_reduce
+from skimage.measure import block_reduce, shannon_entropy
 from PIL import PpmImagePlugin
 
 
@@ -102,7 +102,7 @@ class GLCM():
         axs[3].imshow(self.GLCM[:, :, 0, 2], vmin=vmin, vmax=vmax)
         axs[4].imshow(self.GLCM[:, :, 0, 3], vmin=vmin, vmax=vmax)
         name = os.path.splitext(self.fin)[0]
-        plt.title(name)
+        plt.suptitle(name)
         plt.tight_layout()
 
         if save_img:
@@ -112,7 +112,14 @@ class GLCM():
             plt.show()
 
 
-    def glcm(self, pooled=False) -> None:
+    def calc_glcm(self, pooled=False) -> None:
+
+        def _calc_entropy(glcm:object) -> float:
+            entropy = 0
+            for i, angle in enumerate(self.ANGLES):
+                entropy += shannon_entropy(self.GLCM[:, :, 0, i])
+            return entropy / len(self.ANGLES)
+
         if pooled:
             img = self.pooled_img
         else:
@@ -128,13 +135,14 @@ class GLCM():
         energy         = graycoprops(self.GLCM, 'energy')[0, 0]
         homogeneity    = graycoprops(self.GLCM, 'homogeneity')[0, 0]
         contrast       = graycoprops(self.GLCM, 'contrast')[0, 0]
+        entropy        = _calc_entropy(self.GLCM)
 
-        print("%s,%f,%f,%f,%f,%f\n"
+        print("%s,%f,%f,%f,%f,%f,%f\n"
               %(self.fin, disssimilarity, correlation,
-                energy, homogeneity, contrast))
+                energy, homogeneity, contrast, entropy))
 
 
-    def pooling(self, 
+    def apply_pooling(self, 
                 method:str='max', 
                 new_levels:int=256, 
                 padding_size:int=0,
@@ -191,9 +199,9 @@ class GLCM():
 
         self.read_pgm_12bit(fin)
         if pooling:
-            self.pooling(padding_size=padding_size)
+            self.apply_pooling(padding_size=padding_size)
 
-        self.glcm(pooled=pooling)
+        self.calc_glcm(pooled=pooling)
 
         if save_img:
             self.imshow(vmin=vmin, vmax=vmax, save_img=save_img)
