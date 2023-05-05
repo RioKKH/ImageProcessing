@@ -16,7 +16,7 @@ import lightgbm as lgb
 #from lightgbm import plot_importance, plot_metric
 
 
-class MachineLearningModel():
+class Classfier():
 
     def __init__(self, csv_file:str, seed:int=44):
         names = ("csv_file", "type", 
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    ml_model = MachineLearningModel(args.csv_file)
+    ml_model = Classfier(args.csv_file)
     ml_model.preprocess_data()
     ml_model.train()
     ml_model.show_summary()
