@@ -3,6 +3,7 @@
 
 import sys
 import argparse
+import pickle
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -128,8 +129,12 @@ class Classfier():
         plt.close()
 
 
-    def save_model(self, model_filename='lightgbm_texture.txt'):
+    def save_model(self, 
+                   model_filename='lightgbm_texture.txt',
+                   encoder_filename='encoder_texture.pkl'):
         self.model.save_model(model_filename)
+        with open(encoder_filename, 'wb') as f:
+            pickle.dump(self.encoder, f)
 
 
 if __name__ == '__main__':
@@ -144,11 +149,18 @@ if __name__ == '__main__':
         help='Path to the CSV file',
     )
     parser.add_argument(
-        '-o',
-        '-output_file',
-        dest='output_file',
+        '-m',
+        '--model_file',
+        dest='model_file',
         type=str,
         help='Path to the output (model) file',
+    )
+    parser.add_argument(
+        '-e',
+        '--encoder_file',
+        dest='encoder_file',
+        type=str,
+        help='Path to the output (encoder) file',
     )
     args = parser.parse_args()
 
@@ -156,5 +168,8 @@ if __name__ == '__main__':
     ml_model.preprocess_data()
     ml_model.train()
     ml_model.show_summary()
-    ml_model.save_model(model_filename=args.output_file)
+    ml_model.save_model(
+        model_filename=args.model_file,
+        encoder_filename=args.encoder_file
+    )
 
