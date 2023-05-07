@@ -106,15 +106,29 @@ class GLCM():
         self.img = self.img >> 4
 
 
-    def imshow(self, vmin=0, vmax=5, save_img=False) -> None:
+    def imshow(self, vmin=0, vmax=5, save_img=False, logplot=True) -> None:
         fig, axs = plt.subplots(nrows=1, ncols=5, figsize=(12,4))
+        vmin = np.log(self.GLCM.min()) if self.GLCM.min() > 0    else 0
+        vmax = np.log(self.GLCM.max()) if self.GLCM.max() < 4095 else np.log(4095)
+
+        glcm = self.GLCM
+        if logplot:
+            # 0以下の値を持つインデックスを取得。基本的には0が最小値のはずではある
+            zero_indices = glcm <= 0
+            # log計算のために0以下の値を小さな正の値に置き換える
+            glcm[zero_indices] = 1
+            # logを適用する
+            glcm = np.log10(glcm)
+            # 元の0以下の値を持つ要素を0に置きかえる
+            glcm[zero_indices] = 0
+
         axs[0].imshow(self.img, cmap='gray')
-        axs[1].imshow(self.GLCM[:, :, 0, 0], vmin=vmin, vmax=vmax)
-        axs[2].imshow(self.GLCM[:, :, 0, 1], vmin=vmin, vmax=vmax)
-        axs[3].imshow(self.GLCM[:, :, 0, 2], vmin=vmin, vmax=vmax)
-        axs[4].imshow(self.GLCM[:, :, 0, 3], vmin=vmin, vmax=vmax)
+        axs[1].imshow(glcm[:, :, 0, 0], vmin=vmin, vmax=vmax)
+        axs[2].imshow(glcm[:, :, 0, 1], vmin=vmin, vmax=vmax)
+        axs[3].imshow(glcm[:, :, 0, 2], vmin=vmin, vmax=vmax)
+        im = axs[4].imshow(glcm[:, :, 0, 3], vmin=vmin, vmax=vmax)
         name = os.path.splitext(self.fin)[0]
-        plt.suptitle(name)
+        plt.suptitle(name + f"\n vmin:{vmin} vmax:{vmax}")
         plt.tight_layout()
 
         if save_img:
@@ -122,9 +136,10 @@ class GLCM():
             plt.savefig(savename)
         else:
             plt.show()
+        plt.close()
 
 
-    def calc_glcm(self, pooled=False) -> list:
+    def calc_glcm(self, pooled=False) -> str:
 
         def _calc_entropy(glcm:object) -> float:
             entropies = []
@@ -162,8 +177,11 @@ class GLCM():
         CTR = [str(contrast[i])       for i in range(len(contrast))]
         ENT = [str(entropy[i])        for i in range(len(entropy))]
         
-        print(self.fin, self.label,
-              ",".join(DSS+COR+ENG+HMG+CTR+ENT), sep=",")
+        result = f"{self.fin},{self.label}," + ",".join(DSS+COR+ENG+HMG+CTR+ENT) + "\n"
+        #print(result)
+        #print(self.fin, self.label,
+        #      ",".join(DSS+COR+ENG+HMG+CTR+ENT), sep=",")
+        return result
 
 
     def apply_pooling(self, 
@@ -222,16 +240,18 @@ class GLCM():
             pooling=False,
             padding_size=0,
             save_img=False,
-            vmin=0, vmax=100) -> None:
+            vmin=0, vmax=100) -> str:
 
         self.read_pgm_12bit(fin)
         if pooling:
             self.apply_pooling(padding_size=padding_size)
 
-        self.calc_glcm(pooled=pooling)
+        result = self.calc_glcm(pooled=pooling)
 
         if save_img:
             self.imshow(vmin=vmin, vmax=vmax, save_img=save_img)
+
+        return result
 
 
     def run_all(self,
@@ -240,26 +260,28 @@ class GLCM():
                 vmin:float=0, vmax:float=100) -> None:
 
         try:                             
-            for directory_path in glob.glob("train/*"):
-                label = directory_path.split("/")[-1]
-                self.label = label
-                for img_path in glob.glob(os.path.join(directory_path, "*.pgm")):
-                    self.run(img_path,
-                             pooling=pooling,
-                             padding_size=padding_size,
-                             save_img=save_img,
-                             vmin=vmin, vmax=vmax)
-
-            #for root, dirs, files in os.walk(os.getcwd()):
-            #    files.sort(key=lambda x: os.path.getmtime(x))
-            #    for fin in files:
-            #        suffix = os.path.splitext(fin)[1]
-            #        if suffix == '.pgm':
-            #            self.glcm(fin)
-            #        else:
-            #            continue
+            with open("result.txt", "w") as f:
+                for directory_path in glob.glob("train/*"):
+                    label = directory_path.split("/")[-1]
+                    self.label = label
+                    for img_path in glob.glob(os.path.join(directory_path, "*.pgm")):
+                        print(img_path)
+                        result = self.run(img_path,
+                                          pooling=pooling,
+                                          padding_size=padding_size,
+                                          save_img=save_img,
+                                          vmin=vmin, vmax=vmax)
+                        f.write(result)
 
         except Exception as e:
             print(e)
             print(traceback.format_exc())
 
+
+if __name__ == '__main__':
+    glcm = GLCM()
+    glcm.run_all(
+        pooling=True,
+        padding_size=0,
+        save_img=False, 
+    )

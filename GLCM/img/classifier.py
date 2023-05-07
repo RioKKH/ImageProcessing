@@ -55,7 +55,15 @@ class Classfier():
             'objective': 'multiclass',
             'num_class': len(self.encoder.classes_),
             'metric': 'multi_logloss',
-            'verbosity': 1
+            'verbosity': 1,
+            'max_depth': 6,
+            'num_leaves': 31,
+            'min_data_in_leaf': 20,
+            'feature_fraction': 0.8,
+            'bagging_fraction': 0.8,
+            'bagging_freq': 5,
+            'lambda_l1': 0.2,
+            'lambda_l2': 0.2,
         }
 
         # Record metrics during training
@@ -69,6 +77,7 @@ class Classfier():
 
         self.evals_result = evals_result
         #return evals_result
+
 
     def predict(self, data):
         return self.encoder.inverse_transform(
@@ -116,24 +125,36 @@ class Classfier():
         ax = lgb.plot_importance(self.model)
         plt.show()
 
+        plt.close()
+
+
+    def save_model(self, model_filename='lightgbm_texture.txt'):
+        self.model.save_model(model_filename)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="ML model for Mark classification"
     )
     parser.add_argument(
-        '-f',
-        '--file',
-        dest='csv_file',
+        '-i',
+        '--input_file',
+        dest='input_file',
         type=str,
-        help='Path to the CSV file'
+        help='Path to the CSV file',
+    )
+    parser.add_argument(
+        '-o',
+        '-output_file',
+        dest='output_file',
+        type=str,
+        help='Path to the output (model) file',
     )
     args = parser.parse_args()
 
-    ml_model = Classfier(args.csv_file)
+    ml_model = Classfier(args.input_file)
     ml_model.preprocess_data()
     ml_model.train()
     ml_model.show_summary()
-    #accuracy = ml_model.evaluate()
-    #print(f'Accuracy: {accuracy:.2f}')
+    ml_model.save_model(model_filename=args.output_file)
 
