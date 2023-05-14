@@ -1,0 +1,11 @@
+Best trial:
+  Value:  1.0
+  Params:
+    boosting_type:dart
+    num_leaves:471
+    learning_rate:0.15833755905661576
+    n_estimators:225
+    feature_fraction:0.9366060528615285
+    min_child_samples:5
+    bagging_fraction:0.6613302484311191
+    bagging_freq:2
