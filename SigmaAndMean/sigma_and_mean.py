@@ -36,15 +36,30 @@ def create_randomized_image(array:np.ndarray):
 def plot_histograms(img1:np.ndarray,
                     img2:np.ndarray,
                     title1:str='Image 1',
-                    title2:str='Image 2'):
+                    title2:str='Image 2',
+                    sort:bool=True):
     plt.subplot(121)
-    plt.hist(img1.ravel(), bins=256, range=(0, 255), density=True, color='gray')
+    if sort:
+        tmp = img1.flatten()
+        tmp.sort()
+        plt.hist(tmp, bins=256, range=(0, 255), density=True, color='gray')
+    else:
+        plt.hist(img1.ravel(),
+                 bins=256, range=(0, 255), density=True, color='gray')
+
     plt.title(title1)
     plt.xlabel('Intensity')
     plt.ylabel('Frequency')
 
     plt.subplot(122)
-    plt.hist(img2.ravel(), bins=256, range=(0, 255), density=True, color='gray')
+    if sort:
+        tmp = img2.flatten()
+        tmp.sort()
+        plt.hist(tmp, bins=256, range=(0, 255), density=True, color='gray')
+    else:
+        plt.hist(img2.ravel(),
+                 bins=256, range=(0, 255), density=True, color='gray')
+
     plt.title(title2)
     plt.xlabel('Intensity')
     plt.ylabel('Frequency')
@@ -81,7 +96,8 @@ def main():
     plt.show()
 
     plot_histograms(gaussian_image, randomized_image,
-                    'Gaussian Image', 'Randomized Image')
+                    'Gaussian Image', 'Randomized Image',
+                    sort=True)
 
 
 if __name__ == '__main__':
